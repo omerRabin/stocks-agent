@@ -1,12 +1,22 @@
-# Render-Only Resource Optimizer
+# Render-Compatible Trading Agent with Health Check Endpoint
 import os
 import time
+import threading
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
+from flask import Flask, jsonify
 import pytz
 
 class RenderOptimizer:
     def __init__(self):
         self.est = pytz.timezone('US/Eastern')
+        self.is_running = False
+        self.last_update = None
+        self.status_message = "Initializing..."
+        self.last_alerts = []
+        self.alert_count = 0
         print("🎨 Render Deployment Mode - Optimized for 750 free hours/month")
         
     def should_run_now(self):
@@ -78,8 +88,14 @@ class RenderOptimizer:
     def log_status(self):
         """Log current optimization status"""
         status = self.should_run_now()
-        print(f"\n⏰ {datetime.now(self.est).strftime('%Y-%m-%d %I:%M:%S %p ET')}")
+        timestamp = datetime.now(self.est).strftime('%Y-%m-%d %I:%M:%S %p ET')
+        
+        print(f"\n⏰ {timestamp}")
         print(f"📊 {status['message']}")
+        
+        # Update instance variables for health check
+        self.last_update = timestamp
+        self.status_message = status['message']
         
         if status['should_run']:
             print(f"🔄 Next check in {status['check_interval']} minutes")
@@ -88,15 +104,117 @@ class RenderOptimizer:
         
         return status
 
-# Example usage in your main trading agent
-def main_trading_loop():
-    """Main loop for your trading agent"""
-    optimizer = RenderOptimizer()
+def analyze_mag7_stocks():
+    """Analyze MAG7 stocks for strong buy signals"""
+    # TODO: Replace with your actual analysis logic
+    # This is where you'd integrate:
+    # - Technical indicators (RSI, MACD, etc.)
+    # - Fundamental analysis
+    # - News sentiment
+    # - Volume analysis
     
-    print("🚀 Starting Mag7 Trading Agent on Render")
-    print("=" * 50)
+    # Mock strong buy detection for example
+    mag7_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META']
     
-    while True:
+    # Simulate finding strong buys (replace with real logic)
+    import random
+    if random.random() < 0.1:  # 10% chance for demo
+        return [{'symbol': random.choice(mag7_symbols), 'signal': 'STRONG BUY', 'confidence': 0.85}]
+    
+    return []
+
+def send_email_alert(strong_buys):
+    """Send email alert for strong buy signals"""
+    try:
+        # Email configuration from environment variables
+        smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+        sender_email = os.environ.get('SENDER_EMAIL')
+        sender_password = os.environ.get('SENDER_PASSWORD')  # Use app password for Gmail
+        recipient_email = os.environ.get('RECIPIENT_EMAIL')
+        
+        if not all([sender_email, sender_password, recipient_email]):
+            print("❌ Email configuration missing. Set SENDER_EMAIL, SENDER_PASSWORD, RECIPIENT_EMAIL")
+            return
+        
+        # Create email content
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = recipient_email
+        msg['Subject'] = f"🚀 MAG7 Strong Buy Alert - {len(strong_buys)} Signal(s)"
+        
+        body = "MAG7 Trading Agent Alert\n\n"
+        for buy in strong_buys:
+            body += f"📈 {buy['symbol']}: {buy['signal']} (Confidence: {buy['confidence']:.0%})\n"
+        
+        body += f"\nTimestamp: {datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+        body += f"\nAgent Status: Active"
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Send email
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
+        server.quit()
+        
+        # Update optimizer stats
+        optimizer.last_alerts = strong_buys
+        optimizer.alert_count += len(strong_buys)
+        
+        print(f"✅ Email alert sent successfully to {recipient_email}")
+        
+    except Exception as e:
+        print(f"❌ Failed to send email: {e}")
+
+# Global optimizer instance
+optimizer = RenderOptimizer()
+
+# Flask app for health check endpoint
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    """Health check endpoint for Render"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'Mag7 Trading Agent',
+        'last_update': optimizer.last_update,
+        'current_status': optimizer.status_message,
+        'is_running': optimizer.is_running,
+        'timestamp': datetime.now(optimizer.est).isoformat()
+    })
+
+@app.route('/status')
+def detailed_status():
+    """Detailed status endpoint"""
+    current_status = optimizer.should_run_now()
+    return jsonify({
+        'service': 'Mag7 Trading Agent',
+        'current_time': datetime.now(optimizer.est).isoformat(),
+        'should_run': current_status['should_run'],
+        'message': current_status['message'],
+        'next_check': current_status.get('next_check', '').isoformat() if current_status.get('next_check') else None,
+        'is_market_hours': optimizer.is_market_hours(datetime.now(optimizer.est)),
+        'is_extended_hours': optimizer.is_extended_hours(datetime.now(optimizer.est)),
+        'total_alerts_sent': optimizer.alert_count,
+        'last_alerts': optimizer.last_alerts
+    })
+
+@app.route('/test-alert')
+def test_alert():
+    """Test email alert system"""
+    test_alert = [{'symbol': 'TEST', 'signal': 'STRONG BUY', 'confidence': 0.99}]
+    send_email_alert(test_alert)
+    return jsonify({'message': 'Test alert sent', 'status': 'success'})
+
+def trading_agent_worker():
+    """Background worker for trading logic"""
+    print("🚀 Starting Mag7 Trading Agent Background Worker")
+    optimizer.is_running = True
+    
+    while optimizer.is_running:
         try:
             status = optimizer.log_status()
             
@@ -104,13 +222,12 @@ def main_trading_loop():
                 print("📈 Executing trading logic...")
                 
                 # YOUR TRADING AGENT CODE GOES HERE
-                # Example:
-                # - Fetch market data
-                # - Analyze stocks
-                # - Send alerts
-                # - Update database
+                strong_buys = analyze_mag7_stocks()
                 
-                # Simulate trading work
+                if strong_buys:
+                    send_email_alert(strong_buys)
+                    print(f"📧 Email sent for {len(strong_buys)} strong buy signals")
+                
                 print("✅ Trading cycle completed")
                 
                 # Sleep until next check
@@ -124,13 +241,32 @@ def main_trading_loop():
                 print(f"💤 Entering deep sleep for {status['sleep_minutes']} minutes...")
                 time.sleep(sleep_seconds)
                 
-        except KeyboardInterrupt:
-            print("\n🛑 Trading agent stopped by user")
-            break
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"❌ Trading Agent Error: {e}")
             print("🔄 Retrying in 5 minutes...")
             time.sleep(300)  # 5 minutes
 
+def start_background_worker():
+    """Start the trading agent in a background thread"""
+    worker_thread = threading.Thread(target=trading_agent_worker, daemon=True)
+    worker_thread.start()
+    return worker_thread
+
 if __name__ == "__main__":
-    main_trading_loop()
+    print("=" * 60)
+    print("🚀 Starting Render-Compatible Mag7 Trading Agent")
+    print("=" * 60)
+    
+    # Start background trading worker
+    worker = start_background_worker()
+    
+    # Get port from environment (Render provides this)
+    port = int(os.environ.get('PORT', 5000))
+    
+    print(f"🌐 Starting health check server on port {port}")
+    print(f"📊 Trading agent running in background thread")
+    print(f"🔗 Health check: http://localhost:{port}/")
+    print(f"📈 Status endpoint: http://localhost:{port}/status")
+    
+    # Run Flask app (this satisfies Render's port requirement)
+    app.run(host='0.0.0.0', port=port, debug=False)
