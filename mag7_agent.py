@@ -7,7 +7,7 @@ import pytz
 class FreeTierOptimizer:
     def __init__(self):
         self.est = pytz.timezone('US/Eastern')
-        self.deploy_mode = os.getenv('DEPLOY_MODE', 'railway')  # railway, cloudrun, render
+        self.deploy_mode = os.getenv('DEPLOY_MODE', 'render')  # railway, cloudrun, render
         
     def optimize_for_platform(self):
         """Optimize based on deployment platform"""
