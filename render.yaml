@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: mag7-agent
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python mag7_agent.py"
+    autoDeploy: true
